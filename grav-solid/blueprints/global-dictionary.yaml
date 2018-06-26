@@ -21,54 +21,40 @@ form:
               type: fieldset
               title: "Global dictionary"
               icon: comments
-              collapsed: true
+              collapsed: false
               collapsible: true
               fields:
 
                 # Regular key / value translations
                 header.custom.global :
                   type : array
-                  label : "Key / value pairs.<br>Keys can have dot syntax."
+                  label : "Key / value pairs."
                   placeholder_key: "key.with.dots"
                   placeholder_value: "Value"
 
 
-            # ------------------------------------------------------------------ HOME PAGE DICTIONARY
+            # ------------------------------------------------------------------ PAGES DICTIONARY
 
-# TODO : Ajouter un dico RGPD ici
+            fieldset.pages :
+              type: fieldset
+              title: "Pages dictionaries"
+              text: "Add a set of translations which will be available in every pages of the same template."
+              collapsed: false
+              collapsible: true
+              icon: book
+              fields:
 
-            fieldset.homePage :
-             type: fieldset
-             title: "Home Page"
-             icon: home
-             collapsed: true
-             collapsible: true
-             fields:
-
-               # Regular key / value translations
-               header.custom.homePage :
-                 type : array
-                 label : "Key / value pairs.<br>Keys can have dot syntax."
-                 placeholder_key: "key.with.dots"
-                 placeholder_value: "Value"
-
-
-            # ------------------------------------------------------------------ AGE GATE PAGE DICTIONARY
-            
-            fieldset.ageGatePage :
-             type: fieldset
-             title: "Age Gate Page"
-             icon: comments
-             collapsed: true
-             collapsible: true
-             fields:
-
-               # Regular key / value translations
-               header.custom.ageGatePage :
-                 type : array
-                 label : "Key / value pairs.<br>Keys can have dot syntax."
-                 placeholder_key: "key.with.dots"
-                 placeholder_value: "Value"
-
-            # ------------------------------------------------------------------
-            # Add other dictionaries if needed
+                header.custom.pages :
+                  type: list
+                  style: vertical
+                  fields:
+                    .pageName :
+                      type: text
+                      label: "Solidify page name"
+                      placeholder: "ex: HomePage"
+                      help: "To inject this dictionary into some page, enter the page's template name, without extension."
+                    .entries :
+                      type : array
+                      label : "Key / value pairs."
+                      placeholder_key: "key.with.dots"
+                      placeholder_value: "Value"

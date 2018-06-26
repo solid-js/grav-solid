@@ -84,6 +84,11 @@
 	display: none;
 }
 
+/* Patch du z-index sur la langue de starkcontrast */
+#admin-topbar #admin-lang-toggle
+{
+	z-index: inherit;
+}
 
 /* Patcher le rendu des inputs */
 input[type=text]::-webkit-input-placeholder { /* WebKit, Blink, Edge */
