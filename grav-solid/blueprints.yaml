@@ -1,45 +1,309 @@
 name: Grav Solid
-version: 0.3.0
-description: Grav Solid theme
+version: 0.9.0
+description: Grav theme for Solid Framework
 icon: rocket
 author:
   name: Alexis Bouhet
-  email: info@zouloux.com
-  url: http://zouloux.com
+  email: alex@zouloux.com
+  url: https://zouloux.com
 homepage: https://github.com/solid-js/grav-solid-theme
-
 license: MIT
+dependencies:
+  - { name: grav, version: '>=1.7.0' }
+
+# TODO : Ajouter un warning, les page data recompilée après modif
 
 form:
   validation: strict
   fields:
-    enabled:
-      type: toggle
-      label: Plugin status
-      highlight: 1
-      default: 1
-      options:
-          1: Enabled
-          0: Disabled
-      validate:
-           type: bool
 
-    markdownProperties :
-      type: selectize
-      size: large
-      label: "Markdown property names to parse"
-      help: "Will parse all properties with those name with parsedown. Default root 'content' property is always parsed. If you add 'content' for example, all properties named like so will be parsed with parsedown, even deep in the tree."
-      classes: fancy
-      default: ""
-      validate:
-          type: commalist
+    fieldset.services:
+      type: fieldset
+      title: "Services"
+      icon: server
+      fields:
+        apiEndpoint :
+          type: text
+          label: "API Endpoint folder name for services"
+          help: "Example enter 'api' so your services will be available at /api/service/action. Empty string to disable."
+          placeholder: "api"
 
-    yamlProperties :
-      type: selectize
-      size: large
-      label: "YAML property names to parse"
-      help: "Will parse all properties with those name with YAML. If you add 'yamlData' for example, all properties named like so will be parsed with YAML, even deep in the tree."
-      classes: fancy
-      default: ""
-      validate:
-          type: commalist
+    fieldset.mode:
+      type: fieldset
+      title: "Grav Solid working mode"
+      icon: wrench
+      classes: TypeSelectorParent TypeSelectorParent-noLabel
+      fields:
+        mode:
+          type: toggle
+          default: solid
+          classes: TypeSelector
+          options:
+            twig: "Twig"
+            solid: "Solid"
+            headless: "Headless"
+        twig:
+          type: fieldset
+          text: "Twig is the regular Grav working mode. This will use twig templates to generate Raw HTML."
+          fields:
+            title:
+              type: section
+              title: Not found
+              fields:
+                notFoundPage:
+                  type: pages
+                  default: '/not-found'
+                  show_all: false
+                  show_modular: false
+                  show_root: false
+                  label: "Not found page"
+                  help: "Select page to show when requested URL is not found"
+                  options:
+                    - 'Default message'
+
+        solid:
+          type: fieldset
+          text: "In this mode, App Data are injected into each page to be rendered by front-end with Solid framework."
+          fields:
+            title:
+              type: section
+              title: Data as HTML
+              underline: true
+              fields:
+                dataAsHTML :
+                  type: toggle
+                  label: "Convert App Data to HTML tags"
+                  help: "This may add significant size the generated HTML but this will help Google to browse content quicker and improve SEO."
+                  default: 1
+                  options:
+                    0: "Disable"
+                    1: "Enable"
+        headless:
+          type: fieldset
+          text: "Headless will disable any rendering. Only pages as json and services will be served."
+
+    fieldset.scripts :
+      type: fieldset
+      title: "Application scripts"
+      text: "Select JS and CSS scripts to load depending on which template is loaded. Files are loaded from static/ directory."
+      icon: file-code
+      classes: "TypeSelectorRemote mode=solid mode=twig"
+      fields :
+        scripts :
+          type: list
+          style: vertical
+          collapsible: false
+          btnLabel: Add script
+          fields :
+            .style:
+              type: text
+              label: "CSS file"
+              toggleable: true
+              placeholder: "style.css"
+            .script:
+              type: text
+              label: "Javascript file"
+              toggleable: true
+              placeholder: "script.js"
+            .templates:
+              type: selectize
+              size: large
+              toggleable: true
+              label: "Templates"
+              help: "Disable to load this script on all templates, or select one or several templates."
+              placeholder: "page-home"
+              validate:
+                type: commalist
+
+    fieldset.injectPages :
+      type: fieldset
+      title: "Pages to always inject into App Data"
+      text: "Those pages data will always be available at any page load, wherever the user comes from. Be careful, App Data can become heavy and first application launch may slow down."
+      icon: file
+      classes: "TypeSelectorRemote mode=solid"
+      fields :
+        injectPages :
+          type: list
+          style: vertical
+          collapsible: false
+          btnLabel: Add page
+          fields:
+            .page:
+              type: pages
+              show_all: true
+              show_modular: false
+              show_root: true
+              label: "Page"
+            .depth:
+              type: number
+              default: 0
+              min: -1
+              label: "Depth"
+              help: "Depth of children to inject. 0 is only this page, 1 will inject all direct children and so on. -1 is infinite depth, be careful !"
+
+    fieldset.parsing :
+      type: fieldset
+      title: "App Data"
+      icon: microchip
+      fields :
+        markdownProperties :
+          type: selectize
+          size: large
+          label: "Markdown property names to parse"
+          help: "Will parse all properties with those key with Parsedown. Default root 'content' property is always parsed. If you add 'content' for example, all properties named like so will be parsed with Parsedown, even deep in the tree. See grav-solid-app-data.php to know how it works."
+          default:
+            - content
+          validate:
+            type: commalist
+        yamlProperties :
+          type: selectize
+          size: large
+          label: "YAML property names to parse"
+          help: "Will parse all properties with those name with YAML. If you add 'yaml' for example, all properties named like so will be parsed with YAML, even deep in the tree. See grav-solid-app-data.php to know how it works."
+          default:
+            - data
+          validate:
+            type: commalist
+
+    # Injected upload fields into App Data
+    fieldset.uploads :
+      type: fieldset
+      title: "Uploads in App Data"
+      text: "Fields to inject into App Data for every uploaded files. Note that every field add size into generated App Data. Roll over label to know field name and type."
+      icon: upload
+      fields :
+        uploads.properties.type :
+          type: toggle
+          label: "Inject file type"
+          help: "Type of uploaded file as a string like \"image\" or \"video\" (type:string)"
+          highlight: 1
+          default: 1
+          options:
+            0: "No"
+            1: "Yes"
+        uploads.properties.modified :
+          type: toggle
+          label: "Inject file modified date"
+          help: "Modified date of uploaded file as a timestamp (modified:int)"
+          highlight: 0
+          default: 0
+          options:
+            0: "No"
+            1: "Yes"
+        uploads.properties.filesize :
+          type: toggle
+          label: "Inject file size"
+          help: "Size of uploaded file as in octets (filesize:int)"
+          highlight: 0
+          default: 0
+          options:
+            0: "No"
+            1: "Yes"
+        uploads.properties.size :
+          type: toggle
+          label: "Inject images dimensions"
+          help: "Width and height, in pixels, of uploaded images (width:int, height:int)"
+          highlight: 1
+          default: 1
+          options:
+            0: "No"
+            1: "Yes"
+        uploads.properties.ratio:
+          type: toggle
+          label: "Inject images ratio"
+          help: "Ratio of uploaded images (ratio:float)"
+          highlight: 0
+          default: 0
+          options:
+            0: "No"
+            1: "Yes"
+
+    # Images generation configuration
+    fieldset.images :
+      type: fieldset
+      title: "Generated images formats"
+      text: "Version of images to resize or generate for each uploaded image. For share image meta, use name 'share' and allow it on all pages."
+      icon: image
+      fields :
+        images.sizes :
+          type: list
+          style: vertical
+          collapsed : true
+          btnLabel: Add image version
+          fields :
+            .name :
+              type: text
+              label : "Name of this version :"
+              help : "Will be injected as a key into sizes node in App Data. Lower case is advised."
+              placeholder : "small"
+            .onlyFor :
+              type: selectize
+              size: large
+              toggleable : true
+              label : "Enable only for those templates."
+              help : "Select templates for which this version will be generated. Uncheck to generate for every images uploaded for every solid pages or modules."
+              placeholder: page-home
+              validate:
+                type: commalist
+            .width :
+              type: number
+              label : "Width"
+              help : "Constrain image width for this version."
+              toggleable : true
+            .height :
+              type: number
+              label : "Height"
+              help : "Constrain image height for this version."
+              toggleable : true
+            .quality :
+              type: number
+              label : "Quality"
+              help : "Generated image quality."
+              toggleable : true
+              validate:
+                min: 0
+                max: 100
+            .background:
+              type: text
+              label: "Background color"
+              toggleable : true
+              default: "transparent"
+            .smooth:
+              type: number
+              label: "Smooth image"
+              toggleable: true
+              validate:
+                min: -10
+                max: 10
+            .force:
+              type: toggle
+              label: "Force resize and constrain width and height"
+              highlight: 0
+              default: 0
+              options:
+                0: "No"
+                1: "Yes"
+            .rescale:
+              type: toggle
+              label: "Allow rescale at resize"
+              highlight: 1
+              default: 1
+              options:
+                0: "No"
+                1: "Yes"
+            .crop:
+              type: toggle
+              label: "Allow crop at resize"
+              highlight: 0
+              default: 0
+              options:
+                0: "No"
+                1: "Yes"
+            .grayscale:
+              type: toggle
+              label: "Convert to grayscale"
+              highlight: 0
+              default: 0
+              options:
+                0: "No"
+                1: "Yes"

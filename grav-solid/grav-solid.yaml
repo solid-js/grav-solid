@@ -1,3 +1,18 @@
 enable: true
-yamlProperties:
+mode: solid
 markdownProperties:
+  - content
+yamlProperties:
+  - data
+uploads:
+  properties:
+    type: '1'
+    modified: '0'
+    filesize: '0'
+    size: '0'
+    ratio: '1'
+images:
+  sizes:
+apiEndpoint: api
+dataAsHTML: 1
+notFoundPage: '0'

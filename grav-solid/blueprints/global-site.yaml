@@ -1,0 +1,54 @@
+##
+# Blueprint to site options.
+# Usually not translated.
+# No need to extends it, directly update this blueprint.
+##
+
+title: "Global - Site"
+extends@: "default-global"
+
+form:
+  fields:
+    tabs:
+      fields:
+        content:
+          fields:
+
+            fieldset.keys:
+              type: fieldset
+              title: "Keys"
+              icon: "key"
+              text: "API Keys and IDs configuration."
+              fields:
+
+                header.custom.keys.analytics:
+                  type: text
+                  label: "Google Analytics API key"
+                  placeholder: "GA-XXXXXXXX"
+
+            fieldset.social :
+              type: fieldset
+              title: "Social"
+              icon: "share-alt-square"
+              text : "Social networks infos."
+              fields:
+                header.custom.socialNetworks:
+                  type: list
+                  style: vertical
+                  btnLabel: "Add a social network"
+                  fields :
+                    .id:
+                      type: text
+                      label: "Network ID"
+                      help: "This is important to show correct icon. Always lowercase, without space."
+                      placeholder : "facebook"
+                    .name:
+                      type: text
+                      label: "Network name"
+                      help: "Displayed network name"
+                      placeholder: "Facebook"
+                    .href:
+                      type: text
+                      label: "Network URL"
+                      placeholder : "http://..."
+

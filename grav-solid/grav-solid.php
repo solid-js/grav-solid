@@ -1,25 +1,109 @@
 <?php
 namespace Grav\Theme;
 
-use Grav\Common\Markdown\Parsedown;
-use Grav\Common\Markdown\ParsedownExtra;
+use Grav\Common\Assets;
+use Grav\Common\Data\Blueprint;
+use Grav\Common\Data\Data;
+use Grav\Common\Grav;
+use Grav\Common\Page\Page;
 use Grav\Common\Theme;
-use Symfony\Component\Yaml\Yaml;
+use Grav\Common\Twig\Twig;
+use Solid\core\FrontData;
+use Solid\core\AdminData;
+use Solid\core\ServicesManager;
+use RocketTheme\Toolbox\Event\Event;
+use Solid\helpers\HttpIO;
+
 
 class GravSolid extends Theme
 {
-	// ------------------------------------------------------------------------- INIT
+    /**
+     * Get Grav instance
+     * @return Grav
+     */
+    public function getGrav () { return $this->grav; }
+
+    /**
+     * Current Grav page
+     * @var Page
+     */
+    protected $_page;
+    public function getPage () { return $this->_page; }
+
+    // Current page data
+    protected $_pageData;
+    public function getPageData () { return $this->_pageData; }
+
+    /**
+     * Grav assets manager
+     * @var Assets
+     */
+    protected $_assets;
+    public function getAssets () { return $this->_assets; }
+
+    // Theme config
+    protected $_themeConfig;
+    public function getThemeConfig () { return $this->_themeConfig; }
+
+    // Solid config is the generated yaml file to keep track of version and env properties
+    protected $_solidConfig;
+    public function getSolidConfig () { return $this->_solidConfig; }
+
+    // Injected app data
+    protected $_appData;
+    public function getAppData () { return $this->_appData; }
+
+    // Patched base for multi-languages websites
+    protected $_base;
+    public function getBase () { return $this->_base; }
+
+    // Patched scheme with reverse proxy concerns
+    protected $_scheme;
+    public function getScheme () { return $this->_scheme; }
+
+    // Patched absolute base for multi-languages websites
+    protected $_absoluteBase;
+    public function getAbsoluteBase ( $withScheme = false )
+    {
+        return ($withScheme ? $this->_scheme.':' : '').$this->_absoluteBase;
+    }
+
+    // All language codes
+    protected $_languages;
+    public function getLanguages () { return $this->_languages; }
+
+    // All current locale
+    protected $_locale;
+    public function getLocale () { return $this->_locale; }
+
+    // If page has not been found
+    protected $_notFound = false;
+    public function getNotFound () { return $this->_notFound; }
+
+    // Current requested path
+    protected $_path;
+    public function getPath ( $withLocale = true )
+    {
+        return ($withLocale ? '/'.$this->_locale : '').$this->_path;
+    }
+
+
+    // ------------------------------------------------------------------------- INIT
 
 	public static function getSubscribedEvents ()
 	{
 		return [
-			'onThemeInitialized' => ['onThemeInitialized', 0]
-		];
+		    'onThemeInitialized'    => ['onThemeInitialized', 0],
+            'onBlueprintCreated'    => ['onBlueprintCreated', 1]
+        ];
 	}
 
 	public function onThemeInitialized ()
 	{
-		// Admin mode
+        // Prepare needed configs
+        $this->prepareConfigs();
+
+        // Front-end and not admin panel
 		if ( $this->isAdmin() )
 		{
 			// Check if route is valid
@@ -29,313 +113,719 @@ class GravSolid extends Theme
 			{
 				// Middleware for admin
 				$this->enable([
-					'onPageInitialized' => ['onPageInitializedAdmin', 0]
-				]);
+					'onPageInitialized' => ['onPageInitializedAdmin', 0],
+                    'onAdminSave'       => ['onAdminSave', 0],
+                    'onAdminAfterSave'  => ['onAdminAfterSave', 0],
+                    'onAdminPageTypes' => ['onAdminPageTypes', 0],
+                    'onAdminModularPageTypes' => ['onAdminModularPageTypes', 0],
+                ]);
 			}
 
 			// Disable regular behavior on admin
 			$this->active = false;
 		}
 
-		// Regular website mode
+		// Front-end mode
 		else
 		{
 			$this->enable([
-				'onTwigSiteVariables' => ['onTwigSiteVariables', 0]
+                'onPagesInitialized'    => ['onPagesInitialized', 10],
+                'onPageInitialized'     => ['onPageInitializedFrontEnd', 0],
+                'onTwigSiteVariables'   => ['onTwigSiteVariables', 0],
+                'onPageNotFound'        => ['onPageNotFound', 0],
 			]);
 		}
 	}
 
+    // ------------------------------------------------------------------------- PREPARE CONFIGS
 
-	// ------------------------------------------------------------------------- ADMIN
+    protected function prepareConfigs ()
+    {
+        // Get assets manager
+        $this->_assets = $this->grav['assets'];
+
+        // Get theme config and store it
+        $this->_themeConfig = $this->config->get('theme');
+
+        // Prepare solid config generated from deployer
+        $this->_solidConfig = $this->config->get('solid') ?? [];
+        if (!isset($this->_solidConfig['version'])) $this->_solidConfig['version'] = '0.0';
+        $this->config->set('solid', $this->_solidConfig);
+
+        // Get all languages list and current locale
+        $this->_languages = $this->grav['language']->getLanguages();
+        $this->_locale = $this->grav['language']->getActive() ?? $this->grav['language']->getDefault();
+
+        // Problem  : base_url in theme, includes language. We do not want language
+        //            appended to be able to target files and assets.
+        // Solution : base_url here (in this very function) oddly seems to not include language,
+        //            so we include 'base' theme var as a clone of base_url now.
+        $this->_base = rtrim($this->grav['base_url'], '/').'/';
+
+        // Get absolute base and remove scheme because in some server configs,
+        // https is returning http
+        $this->_absoluteBase = rtrim($this->grav['base_url_absolute']).'/';
+        $this->_absoluteBase = substr($this->_absoluteBase, stripos($this->_absoluteBase, '//'), strlen($this->_absoluteBase));
+
+        // Get correct scheme, even if we are behind a reverse proxy
+        // Note     : If this is returning http even in https with a reverse proxy,
+        //            add these lines to nginx config :
+        //              location / {
+        //                  proxy_set_header Host $http_host;
+        //                  proxy_set_header X-Real-IP $remote_addr;
+        //                  proxy_set_header X-Forwarded-Proto $scheme;
+        //                  [...]
+        //              }
+        $this->_scheme = (
+            (
+                isset($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] == 'on' || $_SERVER['HTTPS'] == 1)
+                || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https')
+            )
+            ? 'https' : 'http'
+        );
+    }
+
+    // ------------------------------------------------------------------------- BACK-END BOOTSTRAP
 
 	public function onPageInitializedAdmin ()
 	{
 		// Inject admin CSS and JS overrides on admin
-		/* @var $assets \Grav\Common\Assets */
-		$assets = $this->grav['assets'];
-		$assets->addCss('user/themes/grav-solid/admin/custom.css', 1);
-		$assets->addJs('user/themes/grav-solid/admin/custom.js', 1);
+		$this->_assets->addCss('theme://solid/admin/custom.css', 1);
+		$this->_assets->addJs('theme://solid/admin/custom.js', 1);
+
+		// Inject next files only when editing pages
+        $page = $this->grav['admin']->page(true);
+        if (!$page) return;
+
+        // Add type-selector plugin
+        $this->_assets->addCss('theme://solid/admin/type-selector.css', 1);
+        $this->_assets->addJs('theme://solid/admin/type-selector.js', 1);
 	}
 
+    public function onAdminSave ( Event $event )
+    {
+        // Get saved object
+        $obj = $event->toArray();
+        $savedObject = $obj['object'];
 
-	// ------------------------------------------------------------------------- FRONT DATA INJECTION
+        // Process page data if saved object is a page
+        if ( $savedObject instanceof Page )
+        {
+            AdminData::init( $this );
+            AdminData::processPageData( $savedObject, true );
+        }
+    }
 
-	public function onTwigSiteVariables ()
-	{
-		$this->injectData();
-	}
+    public function onAdminAfterSave ( Event $event )
+    {
+        // Get saved object
+        $obj = $event->toArray();
+        $savedObject = $obj['object'];
 
-	protected function injectData ()
-	{
-		// Get theme parameters
-		$themeParams = $this->grav['twig']->twig_vars['theme'];
+        // Saving any data
+        if ( $savedObject instanceof Data )
+        {
+            // Get file saved
+            $blueprints = $savedObject->blueprints();
+            $fileName = $blueprints->getFilename();
 
-		// ---- GET PAGES DATA
+            // Detect if we are saving theme options
+            if ( $fileName == pathinfo(__FILE__, PATHINFO_FILENAME).'/blueprints' )
+            {
+                //dump($savedObject->toArray());exit;
 
-		// Get current page
-		/* @var $currentPage \Grav\Common\Page\Page */
-		$currentPage = $this->grav['page'];
+                // Update just saved theme config
+                $this->_themeConfig = $savedObject->toArray();
 
-		// Get all pages data
-		$pagesCollection = $this->grav['pages']->all();
+                // Init admin data manager
+                AdminData::init( $this );
 
-		// Prepare app data with global and pages nodes
-		$appData = [
-			'globals' => [],
-			'pages' => []
-		];
+                // Browse and process all pages with new theme settings
+                // IMPORTANT : This can be very long and crash
+                $pages = $this->grav['pages']->all();
+                foreach ( $pages as $page )
+                    AdminData::processPageData( $page, false );
+            }
+        }
+    }
 
-		// This is the global folder name.
-		// Have to match pages structure, please do not change it.
-		$globalFolderName = '/_global/';
+    /**
+     * Remove some templates types from admin.
+     * @see https://github.com/getgrav/grav-plugin-admin/pull/1105
+     * @param $event
+     */
+    public function onAdminPageTypes ( $event )
+    {
+        $types = $event['types'];
 
-		// ---- MARKDOWN & YAML PREPARATION
+        // Remove defaults
+        unset($types['default']);
+        //unset($types['default-page']);
+        unset($types['default-global']);
 
-		// Get markdown config
-		/* @var $config \Grav\Common\Config\Config */
-		$config = $this->grav['config'];
-		$defaults = (array)$config->get('system.pages.markdown');
+        // Remove singletons
+        unset($types['global-site']);
+        unset($types['global-meta']);
+        unset($types['common-uploads']);
 
-		// Initialize the preferred variant of Parsedown
-		$parsedown = (
-			$defaults['extra']
-			? new ParsedownExtra($this, $defaults)
-			: new Parsedown($this, $defaults)
-		);
+        // FIXME
+        unset($types['external']);
+        unset($types['form']);
+        $event['types'] = $types;
+    }
 
-		// Get markdown and YAML properties to parse from theme options
-		$markdownProperties = $themeParams['markdownProperties'];
-		$yamlProperties = $themeParams['yamlProperties'];
+    /**
+     * Remove some modular templates
+     * @param $event
+     */
+    public function onAdminModularPageTypes ( $event )
+    {
+        // FIXME : noop
+    }
 
-		// Browse pages to inject
-		foreach ($pagesCollection as $page)
-		{
-			/* @var $page \Grav\Common\Page\Page */
+    // ------------------------------------------------------------------------- FRONT-END BOOTSTRAP
 
-			// ----- CURRENT PAGE INFO
+    public function onPagesInitialized ()
+    {
+        // We need front end data generator for json and twig renderings
+        FrontData::init( $this );
 
-			// Get header and route
-			$route = $page->route();
+        // ---- SITEMAP
 
-			// Skip global page which is just a folder
-			if ($route === $globalFolderName) continue;
+        // Remove global and common pages from sitemap
+        $route = $this->config->get('plugins.sitemap.route');
+        if ( $route && $route == $this->grav['uri']->path() )
+        {
+            $globalPages = $this->grav['pages']->routes();
+            $pagesToIgnore = [];
+            foreach ($globalPages as $route => $url)
+            {
+                if (
+                    strpos($route.'/', FrontData::$GLOBAL_FOLDER_PATH) === 0
+                    ||
+                    strpos($route.'/', FrontData::$COMMON_FOLDER_PATH) === 0
+                )
+                    $pagesToIgnore[] = $route;
+            }
 
-			// Get page data through headers
-			$pageHeaders = $page->header();
+            $this->config->set('plugins.sitemap.ignores', array_merge(
+                $this->config->get('plugins.sitemap.ignores'),
+                $pagesToIgnore
+            ));
+        }
+    }
 
-			// Get custom headers if we have some
-			$pageData = (
-				isset($pageHeaders->custom)
-				? $pageHeaders->custom
-				: []
-			);
+    public function onPageInitializedFrontEnd ()
+    {
+        // Get URL paths
+        $paths = $this->grav['uri']->paths();
 
-			// ----- ENABLED PROCESSING
+        // ---- SERVICE API
 
-			// Remove disabled nodes for page data with 'enabled' property.
-	 		// And remove "enabled: true" properties to clean it up.
-			$this->recursiveEnabled( $pageData );
+        // Get api endpoint from theme config
+        $apiEndpoint = $this->_themeConfig['apiEndpoint'] ?? '';
+        if ( !empty($apiEndpoint) && isset($paths[0]) )
+        {
+            // Verify if we are on API URL, without locale
+            $isOnAPI = false;
+            if ( isset( $paths[0] ) && strtolower( $paths[0] ) == $apiEndpoint )
+                $isOnAPI = true;
 
-			// ----- GLOBALS DATA
+            // In this case we are on API URL but with a locale defined
+            else if ($paths[0] == $this->_locale && isset( $paths[1] ) && strtolower( $paths[1] ) == $apiEndpoint )
+            {
+                // Remove locale from paths
+                $isOnAPI = true;
+                array_shift( $paths );
+            }
 
-			// Catch all global pages
-			if ( stripos($route, $globalFolderName) === 0 )
-			{
-				// Register this global page data into app-data globals
-				$appData['globals'][ basename($route) ] = $pageData;
-				continue;
-			}
+            // Remove api endpoint
+            array_shift( $paths );
 
-			// Here we avoid not visible and not inject pages
-			// This is not a global page
-			else if (
-				// If this page is not visible, we always kick it out
-				!$page->visible()
-				||
-				// Never kick current page, even it's not marked as injected
-				$currentPage->route() !== $route
-				&&
-				(
-					// Or this page's blueprint is not extending default page
-					!isset($pageHeaders->solidify)
-					// Or this page ask to be not injected
-					|| !$pageHeaders->solidify['injectPageData']
-				)
+            if ( $isOnAPI )
+            {
+                // Try to exec service
+                ServicesManager::init( $this );
+                ServicesManager::execForHTTP( $paths );
+                exit;
+            }
+        }
 
-			) continue;
+        // ---- PAGE REQUEST ( JSON or HTML )
 
-			// ----- MARKDOWN PROCESSING
+        // Requested path, with trailing slash
+        $this->_path = $this->grav['uri']->path();
+        $this->_path = rtrim( $this->_path, '/' ).'/';
 
-			// If we have some page data and properties to parse with markdown
-			if ( !empty($markdownProperties) && !empty($pageData) )
-			{
-				// Browser those properties
-				foreach ($markdownProperties as $markdownPropertyName)
-				{
-					// And deeply parse with parsedown
-					$this->recursiveParsedown(
-						$parsedown,
-						$pageData,
-						$markdownPropertyName
-					);
-				}
-			}
+        // Get page for this requested path
+        $this->_page = $this->grav['pages']->find( $this->_path );
 
-			// ----- YAML PROCESSING
+        // ---- JSON PAGE REQUEST
 
-			// If we have some page data and properties to parse with YAML
-			if ( !empty($yamlProperties) && !empty($pageData) )
-			{
-				// Browser those properties
-				foreach ($yamlProperties as $yamlPropertyName)
-				{
-					// And deeply parse with YAML
-					$this->recursiveYaml(
-						$pageData,
-						$yamlPropertyName
-					);
-				}
-			}
+        // Check if only json is asked for rendering
+        if ( strtolower($this->grav['uri']->extension()) == 'json' )
+        {
+            // Return 404 code if page not found
+            if ( is_null($this->_page) ) HttpIO::sendNotFoundHeader( true );
 
-			// ----- PAGE DATA FORMATTING
+            // Generate only current page app data
+            $pageData = FrontData::getPageData( $this->_page );
 
-			// This is a page which wants to be injected.
-			// Add page data with route as key
-			$appData['pages'][ $route ] = [
+            // Return only first generated page data
+            foreach ( $pageData as $onlyPageData )
+            {
+                // Return generated page app-data as JSON
+                print HttpIO::response( $onlyPageData );
+                exit;
+            }
+        }
 
-				// Inject page title, no need for meta data since this is only for JS
-				'title' 	=> (
-					isset ($pageHeaders->title)
-					? $pageHeaders->title
-					: ''
-				),
+        // ---- HEADLESS KILL SWITCH
 
-				// Inject solidify page name if specified
-				'pageName' 	=> (
-					isset($pageHeaders->solidify['pageName'])
-					? $pageHeaders->solidify['pageName']
-					: null
-				),
+        // Do not continue with headless mode.
+        // Because we only serve jsons and no twig templates (see above)
+        $mode = $this->_themeConfig['mode'];
+        if ( $mode == 'headless' )
+            HttpIO::sendNotFoundHeader( true, '<h1>Page not found</h1>' );
 
-				// Inject page data
-				'data' 		=> $pageData,
+        // ---- COMMON & GLOBAL
 
-				// Inject parsed content only if we have some
-				// This avoid to parse empty content
-				'content'	=> (
-					! empty($page->rawMarkdown())
-					? $page->content()
-					: ''
-				)
-			];
-		}
+        // Do not allow HTML data rendering of global and common
+        if (
+            stripos(strtolower($this->_path), FrontData::$GLOBAL_FOLDER_PATH) === 0
+            ||
+            stripos(strtolower($this->_path), FrontData::$COMMON_FOLDER_PATH) === 0
+        )
+        {
+            $this->_notFound = true;
+            $this->_page = null;
+        }
 
-		// TODO : Parcourir les pages solidify qui ont des traductions mais qui n'ont jamais été injectée
-		// TODO : Si on en trouve, on les vires du global/dico pour éviter de poluer pour rien
-		// TODO : Lors de requêtes pour récupérer le JSON d'une page, il faudrait que les trads soient récup
-		// TODO : quelle soit injectée ou non car de toutes manières si on tape le JSON c'est que la page n'est pas injectée
+        // ---- HTML PAGE REQUEST
 
-		// Debug : show app data
-		/*
-		echo '<pre>';
-		echo json_encode($appData, JSON_PRETTY_PRINT);
-		exit;
-		//*/
+        // Get this page data
+        $currentPageData = FrontData::getPageData( $this->_page );
+        foreach ($currentPageData as $data) $this->_pageData = $data;
 
-		// ---- INJECT DATA
+        // Generate app data for twig rendering
+        $this->_appData = [
+            'global' => FrontData::getGlobalData(),
+            'pages' => $currentPageData,
+            'found' => !$this->_notFound,
+            'server' => [
+                'scheme' => $this->_scheme,
+                'path' => $this->_path,
+                'base' => $this->_base,
+                'absoluteBase' => $this->_absoluteBase
+            ],
+            'locales' => [
+                'current' => $this->_locale,
+                'available' => $this->_languages,
+            ],
+            'solid' => $this->_solidConfig
+        ];
 
-		// Inject app data
-		$this->grav['twig']->twig_vars['appData'] = $appData;
-	}
+        // Browse pages to inject from theme options
+        if ( isset($this->_themeConfig['injectPages']) && is_array($this->_themeConfig['injectPages']) )
+        {
+            foreach ( $this->_themeConfig['injectPages'] as $injectedPage )
+            {
+                // Target page object and quit if not found
+                $pageObjectToInject = $this->grav['pages']->find( $injectedPage['page'] );
+                if (is_null($pageObjectToInject)) continue;
+
+                // Get page data and inject them into app data
+                $this->_appData['pages'] += FrontData::getPageData( $pageObjectToInject, intval($injectedPage['depth'], 10) ?? '0');
+            }
+        }
+
+        /**   DEBUG APP DATA   **/
+        //dump($this->_appData);exit;
+    }
+
+    public function onPageNotFound ( Event $event )
+    {
+        // In twig mode, we get the not found page from theme config
+        if ( $this->_themeConfig['mode'] == 'twig' )
+        {
+            $event->page = $this->grav['pages']->find(
+                $this->_themeConfig['notFoundPage']
+            );
+        }
+
+        // Only for solid mode
+        // Every pages, even not founds, are solid pages
+        else if ( $this->_themeConfig['mode'] == 'solid' )
+            $event->page = $this->grav['pages']->find('/');
+
+        // Show not found content
+        if (is_null($event->page))
+            HttpIO::sendNotFoundHeader( true, '<h1>Page not found</h1>');
+
+        // Set page on event so this will not throw an exception
+        $event->stopPropagation();
+    }
+
+    // ------------------------------------------------------------------------- FRONT-END TWIG INJECTION
+
+    public function onTwigSiteVariables ()
+    {
+        /** @var Twig $twig */
+        $twig = $this->grav['twig'];
+
+        // Do not continue to manage twig for solid
+        // A plugin may have already something to show
+        if (!is_null($twig->template)) return;
+
+        // Inject env data
+        $twig->twig_vars['base']            = $this->_base;
+        $twig->twig_vars['absoluteBase']    = $this->_absoluteBase;
+        $twig->twig_vars['scheme']          = $this->_scheme;
+        $twig->twig_vars['locale']          = $this->_locale;
+
+        // Inject data for front end
+        $twig->twig_vars['appData']         = $this->_appData;
+        $twig->twig_vars['global']          = $this->_appData['global'];
+        $twig->twig_vars['pageData']        = $this->_pageData;
+
+        // ---- META
+
+        // Create meta bag with default values
+        $meta = [
+            'title'         => $twig->twig_vars['site']['title'] ?? '',
+            'description'   => $twig->twig_vars['site']['description'] ?? '',
+            'canonical' => (
+                isset($this->_page)
+                ? $this->getAbsoluteBase( true ).ltrim($this->_page->url(false, true, true), '/')
+                : ''
+            ),
+            'share' => []
+        ];
+
+        // This holds the share image media object (from page or global meta)
+        $shareMedia = [];
+
+        // Inject global site meta if defined
+        if ( isset($this->_appData['global']['site-meta']) )
+        {
+            // Target global share meta
+            $shareMeta = $this->_appData['global']['site-meta'];
+
+            // Set title meta from global meta
+            if ( isset($shareMeta['title']) )
+                $meta['title'] = $shareMeta['title'];
+
+            // Set description from global meta
+            if ( isset($shareMeta['description']) )
+                $meta['description'] = $shareMeta['description'];
+
+            // Set share meta from global meta
+            if ( isset($shareMeta['share']) )
+            {
+                $meta['share'] = $shareMeta['share'];
+                $shareMedia = $shareMeta['media'] ?? [];
+            }
+        }
+
+        // IF we have a current page
+        if ( isset($this->_page) && !is_null($this->_page) )
+        {
+            // Set title meta from page
+            $meta['title'] = $this->_page->title();
+
+            // Set description meta from page
+            if ( isset($this->_pageData['description']) )
+                $meta['description'] = $this->_pageData['description'];
+
+            // Set share meta from page meta
+            if ( isset($this->_pageData['share']) )
+            {
+                // Merge every props (+= not working here since no override)
+                $meta['share'] = array_merge($meta['share'], $this->_pageData['share']);
+                $shareMedia = $this->_pageData['media'] ?? [];
+            }
+        }
+
+        // If we have a share image
+        if ( isset($meta['share']['image']) )
+        {
+            // Failsafe, remove image info if we do not find link
+            // This should never happens
+            if ( !isset($shareMedia[ $meta['share']['image'] ]) )
+                unset($meta['share']['image']);
+
+            else
+            {
+                // Target image info from media object
+                $shareImage = $shareMedia[ $meta['share']['image'] ];
+
+                // Set share image link
+                $imageHref = (
+                    // From share named size
+                    isset($shareImage['sizes']) && isset($shareImage['sizes']['share'])
+                    ? $shareImage['sizes']['share']
+                    // Or with default
+                    : $shareImage['url']
+                );
+
+                // Share URL are always absolute
+                $meta['share']['image'] = $this->getAbsoluteBase( true ).$imageHref;
+            }
+        }
+
+        // Facebook og:site_name is meta description by default
+        if ( !isset($meta['share']['facebook']) )
+            $meta['share']['facebook'] = $meta['description'];
+
+        // Inject
+        $twig->twig_vars['meta'] = $meta;
+
+        // ---- DATA AS HTML
+
+        // Render data as HTML
+        if ( $this->_themeConfig['dataAsHTML'] == '1' && !is_null($this->_pageData) )
+        {
+            // Inject page title
+            $htmlBuffer = '<h1>'.htmlspecialchars($this->_pageData['title']).'</h1>';
+
+            // Inject menus
+            foreach ( $this->_appData['global'] as $globalKey => $globalItem )
+            {
+                if ( stripos($globalKey, '-menu') === false || !isset($globalItem['entries']) ) continue;
+
+                $htmlBuffer .= '<ul>';
+                foreach ( $globalItem['entries'] as $menuItem )
+                    $htmlBuffer .= $this->generateLinkHTML( $menuItem, 'li' );
+                $htmlBuffer .= '</ul>';
+            }
+
+            // Inject page content recursively
+            $htmlBuffer .= $this->recursiveGenerateHTML( $this->_pageData['data'], $this->_pageData );
+            $twig->twig_vars['dataAsHTML'] = $htmlBuffer;
+        }
+
+        // ---- PAGE TEMPLATE
+
+        // Get page template if possible
+        $pageTemplate = (
+            ! is_null( $this->_page )
+            ? $this->_page->template()
+            : 'none'
+        );
+
+        // TODO : Be able to select custom templates in special cases
+        // TODO : Example if we want to create just a share URL with meta
+
+        // Only in solid mode
+        // Force default html to be loaded for every pages, even not found
+        if ( $this->_themeConfig['mode'] == 'solid' )
+            $twig->template = 'default.html.twig';
+
+        // ---- SCRIPTS
+
+        // TODO : Async scripts
+        // TODO : Absolute href for CSS and JS ?
+        // TODO : JS Inject ( like : `Application.start( __appData );` )
+
+        // Resources to inject in template (scripts and styles)
+        $resourcesToInject = [
+            'scripts' => [],
+            'styles' => []
+        ];
+
+        // If we have scripts to inject from theme config
+        if ( is_array($this->_themeConfig['scripts']) )
+        {
+            // Browse all resources to inject
+            foreach ($this->_themeConfig['scripts'] as $resource)
+            {
+                // If this resource have a template filter
+                if ( !empty($resource['templates']) && !in_array($pageTemplate, $resource['templates']) ) continue;
+
+                // Add script if needed
+                if (!empty($resource['script']))
+                    $resourcesToInject['scripts'][] = $resource['script'];
+
+                // Add style if needed
+                if (!empty($resource['style']))
+                    $resourcesToInject['styles'][] = $resource['style'];
+            }
+        }
+
+        // Give resources list to twig template
+        $twig->twig_vars['resources'] = $resourcesToInject;
+    }
+
+    /**
+     * Generate page data as HTML, recursively.
+     * This is very roughly so do not expect perfect results from this method.
+     *
+     * @param Mixed $node Current node or page data "data" node to start parsing.
+     * @param Mixed $pageData Page data (not recursive) so this method can get media object
+     * @param int $currentTitleLevel Current level of title tag. Default is h1, every title will increment this value recursively.
+     * @return string Generated HTML
+     */
+    protected function recursiveGenerateHTML ($node, $pageData, $currentTitleLevel = 1)
+    {
+        $html = '';
+        foreach ( $node as $key => $value )
+        {
+            // Recursively generate html
+            if ( is_array($value) )
+            {
+                // Do not recursively parse Yaml Object, for 2 reasons :
+                // 1. We do not know nature of data and so which kind of tag to create
+                // 2. Raw HTML can be injected which can lead to serious security issues
+                $isAYamlObject = false;
+                foreach ( $this->_themeConfig['yamlProperties'] as $property )
+                {
+                    if ( $key == $property )
+                    {
+                        $isAYamlObject = true;
+                        break;
+                    }
+                }
+                if ($isAYamlObject) continue;
+
+                // Detect links
+                if (isset($value['type']) && (isset($value['page']) || isset($value['href'])))
+                {
+                    $html .= $this->generateLinkHTML( $value );
+                    continue;
+                }
+
+                // Parse recursively
+                $html .= $this->recursiveGenerateHTML( $value, $pageData, $currentTitleLevel );
+            }
+
+            // Detect titles
+            else if ( stripos($key, 'title') !== false )
+            {
+                // Create H tag
+                $currentTitleLevel ++;
+                $html .= "<h$currentTitleLevel>".htmlspecialchars($value)."</h$currentTitleLevel>";
+            }
+
+            // Detect images
+            else if ( isset($pageData['media'][$value]) )
+            {
+                // Target image meta
+                $media = $pageData['media'][$value];
+                if ( !isset($media['type']) ) continue;
+
+                // Only manage images
+                if ( $media['type'] != 'image' ) continue;
+
+                // If several images
+                if (isset($media['sizes']) && !empty($media['sizes']))
+                {
+                    // Get first image size
+                    $firstSizeKey = array_key_first($media['sizes']);
+                    if ( is_null($firstSizeKey) ) continue;
+
+                    // Generate image tag
+                    $src = $media['sizes'][$firstSizeKey];
+                }
+
+                // Otherwise get uploaded and non optimized image
+                else $src = $media['url'];
+                $html .= "<img src='$this->_base$src' />";
+            }
+
+            // Else detect string based elements
+            else if ( is_string($value) )
+            {
+                // Detect if this is a markdown value
+                $isMarkdownObject = false;
+                foreach ($this->_themeConfig['markdownProperties'] as $property)
+                {
+                    if ( $key == $property )
+                    {
+                        $isMarkdownObject = true;
+                        break;
+                    }
+                }
+
+                // Inject raw parsed markdown
+                if ( $isMarkdownObject )
+                    $html .= $isMarkdownObject;
+
+                else
+                {
+                    // TODO : Only insert strings with spaces ? What's the best todo here ?
+                    //$html .= "<p>".htmlspecialchars($value)."</p>"
+                }
+            }
+        }
+        return $html;
+    }
+
+    /**
+     * Generate link HTML
+     * @param $linkObject
+     * @param null $surroundedTag
+     * @return string
+     */
+    protected function generateLinkHTML ( $linkObject, $surroundedTag = null )
+    {
+        // Generate link to a page
+        if ($linkObject['type'] == 'page')
+        {
+            $page = $this->grav['pages']->find( $linkObject['page'] );
+            if (is_null($page)) return '';
+            $href = FrontData::patchPageRoute( $page->route(), true );
+        }
+
+        // Free hyperlink
+        else if ($linkObject['type'] == 'external')
+        {
+            $href = $linkObject['href'];
+
+            // Add rel=nofollow for external links
+            $rel = "nofollow";
+
+            // Add target if specified
+            if (isset($linkObject['target']))
+                $target = $linkObject['target'];
+        }
+        else return '';
+
+        // Add surrounded tag
+        $output = '';
+        if (!is_null($surroundedTag)) $output .= "<$surroundedTag>";
+
+        // Base link with href
+        $output .= "<a href=\"$href\"";
+
+        // Rel and target
+        if (isset($rel))        $output .= " rel=\"$rel\"";
+        if (isset($target))     $output .= " target=\"$target\"";
+
+        // Link content
+        $output .= ">".$linkObject['name']."</a>";
+
+        // Closing
+        if ( !is_null($surroundedTag) ) $output .= "</$surroundedTag>";
+        return $output;
+    }
 
 
-	// ------------------------------------------------------------------------- RECURSIVE PARSING
+    // -------------------------------------------------------------------------
 
-	/**
-	 * Will convert every markdown content recursively.
-	 * @param $parsedown Parsedown instance.
-	 * @param array $node Node to browse recursively
-	 * @param string $pPropName Name of property to convert
-	 */
-	protected function recursiveParsedown (&$parsedown, &$node, $pPropName)
-	{
-		// Browse as reference
-		foreach ($node as $key => &$value)
-		{
-			// If key is the prop we want to convert
-			if ( $key == $pPropName && is_string($value) )
-			{
-				// Convert it
-				$node[ $pPropName ] = $parsedown->text( $value );
-			}
+    /**
+     * Prevent sitemap to extends global and common blueprints
+     * @param Event $event
+     */
+    public function onBlueprintCreated (Event $event)
+    {
+        /** @var Blueprint $blueprint */
+        $blueprint = $event['blueprint'];
 
-			// Else, browse recursively
-			else if (is_array($value))
-			{
-				$this->recursiveParsedown($parsedown, $value, $pPropName);
-			}
-		}
-	}
-
-	/**
-	 * Will convert every YML content recursively.
-	 * @param array $node Node to browse recursively
-	 * @param string $pPropName Name of property to convert
-	 */
-	protected function recursiveYaml (&$node, $pPropName)
-	{
-		// Browse as reference
-		foreach ($node as $key => &$value)
-		{
-			// If key is the prop we want to convert
-			if ( $key == $pPropName && is_string($value) )
-			{
-				// Convert it
-				$node[$pPropName] = Yaml::parse( $value );
-			}
-
-			// Else, browse recursively
-			else if ( is_array($value) )
-			{
-				$this->recursiveYaml($value, $pPropName);
-			}
-		}
-	}
-
-	/**
-	 * Remove disabled nodes for page data with 'enabled' property.
-	 * And remove "enabled: true" properties to clean it up.
-	 * @param array $node Page data node to clean.
-	 * @param string $pEnabledPropName Name of the enabled prop, default is enabled.
-	 */
-	protected function recursiveEnabled (&$node, $pEnabledPropName = 'enabled')
-	{
-		// Browse as reference
-		foreach ($node as $key => &$value)
-		{
-			// Only interested with arrays
-			if ( !is_array($value) ) continue;
-
-			// If enabled property exists
-			if ( isset($value[ $pEnabledPropName ]) )
-			{
-				// Remove whole node if enabled is false
-				if (!$value[ $pEnabledPropName ])
-				{
-					unset($node[$key]);
-					continue;
-				}
-
-				// Remove only property if enabled is true
-				else
-				{
-					unset($value[ $pEnabledPropName ]);
-				}
-			}
-
-			// Continue recursively
-			$this->recursiveEnabled( $value );
-		}
-	}
+        (
+            stripos($blueprint->getFilename(), 'global') !== false
+            ||
+            stripos($blueprint->getFilename(), 'common') !== false
+        )
+        && $event->stopPropagation();
+    }
 }

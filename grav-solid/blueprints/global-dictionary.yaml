@@ -8,53 +8,22 @@ extends@: "default-global"
 
 form:
   fields:
-
     tabs:
       fields :
-
-        content :
-          fields :
+        content:
+          fields:
 
             # ------------------------------------------------------------------ GLOBAL DICTIONARY
 
             fieldset.global :
               type: fieldset
-              title: "Global dictionary"
+              title: "Dictionary"
               icon: comments
-              collapsed: false
-              collapsible: true
               fields:
 
                 # Regular key / value translations
-                header.custom.global :
+                header.custom.data :
                   type : array
                   label : "Key / value pairs."
                   placeholder_key: "key.with.dots"
                   placeholder_value: "Value"
-
-
-            # ------------------------------------------------------------------ PAGES DICTIONARY
-
-            fieldset.pages :
-              type: fieldset
-              title: "Pages dictionaries"
-              text: "Add a set of translations which will be available in every pages of the same template."
-              collapsed: false
-              collapsible: true
-              icon: book
-              fields:
-
-                header.custom.pages :
-                  type: list
-                  style: vertical
-                  fields:
-                    .pageName :
-                      type: text
-                      label: "Solidify page name"
-                      placeholder: "ex: HomePage"
-                      help: "To inject this dictionary into some page, enter the page's template name, without extension."
-                    .entries :
-                      type : array
-                      label : "Key / value pairs."
-                      placeholder_key: "key.with.dots"
-                      placeholder_value: "Value"

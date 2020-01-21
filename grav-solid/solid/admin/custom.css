@@ -1,0 +1,225 @@
+
+/* TODO : Trad en anglais */
+/* TODO : Ajouter peut-être certains switch dans l'admin mais pas vital */
+
+/* Virer le logo grav */
+#admin-logo
+{
+	display: none;
+}
+
+
+/* Virer le footer github */
+#footer
+{
+	display: none;
+}
+
+
+/* Patcher la couleur qui dépasse en bas de chaque page */
+.admin-block
+{
+	background-color : #eee !important;
+}
+
+
+/* Un peu de marge en bas */
+.form-tab
+{
+	padding-bottom: 20px;
+}
+
+
+/* Virer le bandeau github issue en bas de chaque page */
+.admin-block + .notice.alert .fa-github,
+.admin-block + .notice.alert .fa-github + a
+{
+	display: none;
+}
+.admin-block + .notice.alert
+{
+	background-color : #eee !important;
+	border-bottom-color: rgba(0, 0, 0, .1);
+}
+
+/* Fixer la taille des icones de la side-bar au roll over */
+#admin-menu li a:hover i
+{
+	font-size: inherit !important;
+	margin-right: 10px;
+}
+
+
+/* Décaller les boutons des listes */
+.collection-actions
+{
+	margin-top: 30px;
+	padding-bottom: 15px;
+}
+
+
+/* Virer le login au login */
+#admin-login h1
+{
+	display: none;
+}
+
+
+/* Animer la sidebar au roll-over */
+#admin-sidebar
+{
+	transition : width .2s;
+	overflow: hidden;
+}
+#admin-user-details,
+#admin-sidebar .admin-menu-wrapper
+{
+	width: 240px;
+}
+
+
+/* Masquer la quicktray */
+#admin-nav-quick-tray
+{
+	display: none;
+}
+
+
+/* Patcher le rendu des inputs */
+input[type=text]::-webkit-input-placeholder { /* WebKit, Blink, Edge */
+	color:    #999;
+}
+input[type=text]:-moz-placeholder { /* Mozilla Firefox 4 to 18 */
+	color:    #999;
+	opacity:  1;
+}
+input[type=text]::-moz-placeholder { /* Mozilla Firefox 19+ */
+	color:    #999;
+	opacity:  1;
+}
+input[type=text]:-ms-input-placeholder { /* Internet Explorer 10-11 */
+	color:    #999;
+}
+input[type=text]:-ms-input-placeholder { /* Microsoft Edge */
+	color:    #999;
+}
+
+
+/* Masquer le switch normal/expert sur l'édition de pages */
+#admin-mode-toggle
+{
+	display: none !important;
+}
+
+
+/* Supprimer les flou sur les modales pour éviter les lags */
+.remodal-bg.remodal-is-opening,
+.remodal-bg.remodal-is-opened
+{
+	filter: none !important;
+	-webkit-filter: none !important;
+}
+
+/* Désactiver la sélection */
+body {
+	-webkit-touch-callout: none;
+	-webkit-user-select: none;
+	-khtml-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+}
+body input,
+body textarea
+{
+	-webkit-touch-callout: default;
+	-webkit-user-select: auto;
+	-khtml-user-select: auto;
+	-moz-user-select: auto;
+	-ms-user-select: auto;
+	user-select: auto;
+}
+
+/* Show global and common pages in a fancy way */
+.page-item[data-nav-id='/global'] > *
+{
+	background-color: rgba(255, 100, 100, .07);
+}
+.page-item[data-nav-id='/common'] > *
+{
+	background-color: rgba(100, 100, 255, .07);
+}
+.page-item[data-nav-id='/global']
+{
+	padding-bottom: .5em;
+}
+.page-item[data-nav-id='/common']
+{
+	margin-bottom: .5em;
+	padding-bottom: .5em;
+	border-bottom: 1px dashed rgba(0, 0, 0, .2);
+}
+/* Hide remove and preview buttons */
+.page-item[data-nav-id='/global'] > * > .page-item__tools,
+.page-item[data-nav-id='/common'] > * > .page-item__tools,
+.page-item[data-nav-id='/global'] .page-item__tools .page-view,
+.page-item[data-nav-id='/common'] .page-item__tools .page-view
+{
+	display: none;
+}
+/* Disable global and common root page edit */
+.page-item[data-nav-id='/global'] > * > .page-item__content,
+.page-item[data-nav-id='/common'] > * > .page-item__content
+{
+	pointer-events: none;
+}
+.page-item[data-nav-id='/global'] > * > .page-item__content a,
+.page-item[data-nav-id='/common'] > * > .page-item__content a
+{
+	color: black;
+	font-size: 1.3em;
+	margin-top: .3em;
+	margin-bottom: .1em;
+}
+/* Remove global and common root URL, tool tip, lang ... */
+.page-item[data-nav-id='/global'] > .page-item__row .page-route,
+.page-item[data-nav-id='/global'] > .page-item__row .badge.lang,
+.page-item[data-nav-id='/global'] > .page-item__row span[data-hint]:before,
+.page-item[data-nav-id='/global'] > .page-item__row span[data-hint]:after,
+.page-item[data-nav-id='/common'] > .page-item__row .page-route,
+.page-item[data-nav-id='/common'] > .page-item__row .badge.lang,
+.page-item[data-nav-id='/common'] > .page-item__row span[data-hint]:before,
+.page-item[data-nav-id='/common'] > .page-item__row span[data-hint]:after
+{
+	display: none;
+}
+/* Toggle hit zone maximised */
+.page-item[data-nav-id='/global'] > .page-item__row,
+.page-item[data-nav-id='/common'] > .page-item__row
+{
+	position: relative;
+}
+.page-item[data-nav-id='/global'] > .page-item__row .page-item__toggle,
+.page-item[data-nav-id='/common'] > .page-item__row .page-item__toggle
+{
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	width: 100%;
+}
+.page-item[data-nav-id='/global'] > .page-item__row .page-item__toggle > i,
+.page-item[data-nav-id='/common'] > .page-item__row .page-item__toggle > i
+{
+	height: 100%;
+	width: 100%;
+	opacity: 0;
+	cursor: pointer;
+}
+
+/* Grav 1.7 page modal - Hide page route not found error */
+.remodal-is-opened .leaf-row.error
+{
+	display: none;
+}

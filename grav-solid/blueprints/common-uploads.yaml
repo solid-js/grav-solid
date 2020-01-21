@@ -1,0 +1,37 @@
+###
+# This blueprint represents an upload bucket.
+# Do not extends, use once as /_upload
+###
+
+title: "Default - Uploads"
+
+extends@:
+  type: default-global
+  context: blueprints://pages
+
+form:
+  fields:
+
+    tabs:
+      fields:
+
+        content :
+          type: tab
+          fields :
+            header.media_order:
+              type: pagemedia
+              label: "Upload common files here."
+
+
+        #advanced :
+          #fields:
+            #overrides:
+              #fields:
+
+                #header.routable:
+                #  default: 0
+                #  toggleable: false
+
+                #header.visible:
+                #  default: 0
+                #  toggleable: false

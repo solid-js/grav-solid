@@ -1,0 +1,112 @@
+##
+# Blueprint to manage all menus of this website.
+# Usually translated.
+# No need to extends it, directly update this blueprint.
+##
+
+title: "Global - Menus"
+extends@: "default-global"
+
+
+form:
+  fields:
+    tabs :
+      fields :
+        content :
+          fields :
+
+            #header.media_order:
+            #  type: pagemedia
+            #  label: "Upload common files here."
+            #  destination: 'pages@:uploads'
+
+            # ------------------------------------------------------------------ MAIN MENU
+
+            fieldset.entries :
+              type: fieldset
+              icon: "tasks"
+              title: "Menu entries"
+              fields:
+
+                # Menu entries
+                header.custom.entries :
+                  type : list
+                  style : vertical
+                  classes: TypeSelectorParent
+                  collapsed: true
+                  fields :
+
+                    # Entry name
+                    .name:
+                      type: text
+                      label: "Menu item name"
+                      help: "This is the visible part of the menu item."
+
+                    # Enable switch
+                    .enabled:
+                      type: toggle
+                      label: "Enabled"
+                      highlight: 1
+                      default: 1
+                      size: medium
+                      options:
+                        1: PLUGIN_ADMIN.YES
+                        0: PLUGIN_ADMIN.NO
+                      validate:
+                        type: bool
+
+                    .type :
+                      type: toggle
+                      label: "Select link type"
+                      classes: TypeSelector
+                      default: page
+                      options:
+                        page: "Page"
+                        external: "Link"
+                        #file: "File"
+
+                    .pageFieldset:
+                      type: fieldset
+                      fields :
+                        .page:
+                          type: pages
+                          label: "Page"
+                          show_all: false
+                          show_modular: false
+                          show_root: true
+
+                    .externalFieldset:
+                      type: fieldset
+                      fields :
+                        .href:
+                          type: link
+                          label: "External link to"
+                          placeholder: "http://..."
+                        .target:
+                          type: select
+                          label: "Link target"
+                          options:
+                            _new: "New - new tab"
+                            _self: "Self - current tab"
+                            _blank: "Blank - new page"
+
+                    # TODO : Impossible d'ajouter un file ou un fildset ...
+
+                    #.fileFieldset:
+                    # type: fieldset
+                    # fields:
+                    #   .file:
+                    #     type: filepicker
+                    #     label: "File to open"
+                    #     #folder: 'page@:/uploads/'
+                    #     #destination: '/user/pages/02.uploads/'
+                    #     preview_images: true
+#
+                    #   .target:
+                    #     type: select
+                    #     label: "Link target"
+                    #     options:
+                    #       _new: "New - new tab"
+                    #       _self: "Self - current tab"
+                    #       _blank: "Blank - new page"
+

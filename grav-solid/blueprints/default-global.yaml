@@ -1,109 +1,148 @@
-###
-# This blueprint represents a global structure base.
-# Use only by extending from another blueprint which defines the structure.
-# Do not extend for pages.
-#
-# Routable and visibility are disabled by default, so structures extending
-# this blueprint can be inside _global folder.
-###
 
-title: "Default - Global"
-
-extends@:
-  type: default
-  context: blueprints://pages
 
 form:
   fields:
-
     tabs:
-      fields:
+      type: tabs
+      fields :
 
-        # Hide everything in content tab
-        content :
-          fields :
+        content:
+          type: tab
+          title: PLUGIN_ADMIN.CONTENT
 
-            header.title :
-              type : ignore
-            content :
-              type : ignore
-            uploads :
-              type : ignore
-            header.media_order :
-              type : ignore
-
-        # Options are not ignored here.
-        # If you don't need this tab, ignore it in your blueprint
-        options:
-          type: ignore
-
-        # Clean useless fields in advanced tab
         advanced:
+          type: tab
+          title: PLUGIN_ADMIN.ADVANCED
 
-          # Stick tab to the right
-          ordering@: 100
           fields:
 
             columns:
+              type: columns
               fields:
-
-                # Remove body classes field
                 column1:
+                  type: column
                   fields:
 
-                    header.body_classes:
-                      type: ignore
+                    settings:
+                      type: section
+                      title: PLUGIN_ADMIN.SETTINGS
+                      underline: true
 
-                # Set folder ordering enabled by default
+                    header.title:
+                      type: text
+                      label: PLUGIN_ADMIN.TITLE
+
+                    folder:
+                      type: text
+                      label: PLUGIN_ADMIN.FOLDER_NAME
+                      validate:
+                        rule: slug
+
+                    route:
+                      type: parents
+                      label: PLUGIN_ADMIN.PARENT
+                      classes: fancy
+
+                    name:
+                      type: select
+                      classes: fancy
+                      label: PLUGIN_ADMIN.PAGE_FILE
+                      help: PLUGIN_ADMIN.PAGE_FILE_HELP
+                      default: default
+                      data-options@: '\Grav\Common\Page\Pages::pageTypes'
+
+
                 column2:
+                  type: column
+
                   fields:
+                    order_title:
+                      type: section
+                      title: PLUGIN_ADMIN.ORDERING
+                      underline: true
 
                     ordering:
+                      type: toggle
+                      label: PLUGIN_ADMIN.FOLDER_NUMERIC_PREFIX
+                      help: PLUGIN_ADMIN.FOLDER_NUMERIC_PREFIX_HELP
                       highlight: 1
-                      default: 1
+                      options:
+                        1: PLUGIN_ADMIN.ENABLED
+                        0: PLUGIN_ADMIN.DISABLED
+                      validate:
+                        type: bool
 
-            # Remove some override fields
+                    order:
+                      type: order
+                      label: PLUGIN_ADMIN.SORTABLE_PAGES
+                      sitemap:
+
             overrides:
+              type: section
+              title: PLUGIN_ADMIN.OVERRIDES
+              underline: true
+
               fields:
 
-                # Set routable and visible to false
-                header.routable:
-                  highlight: 0
-                  default: 0
-                header.visible:
-                  highlight: 0
-                  default: 0
-
-                # Remove other useless fields
-                header.dateformat:
-                  type: ignore
-                header.menu:
-                  type: ignore
-                header.slug:
-                  type: ignore
-                header.redirect:
-                  type: ignore
-                header.process:
-                  type: ignore
-                header.twig_first:
-                  type: ignore
-                header.never_cache_twig:
-                  type: ignore
                 header.child_type:
-                  type: ignore
-                header.cache_enable:
-                  type: ignore
-                header.debugger:
-                  type: ignore
-                header.template:
-                  type: ignore
-                header.append_url_extension:
-                  type: ignore
+                  type: select
+                  toggleable: true
+                  label: PLUGIN_ADMIN.DEFAULT_CHILD_TYPE
+                  default: default
+                  placeholder: PLUGIN_ADMIN.USE_GLOBAL
+                  data-options@: '\Grav\Common\Page\Pages::types'
 
-            # Remove all route override fields
-            routes_only :
-              type: ignore
+                header.routable:
+                  type: toggle
+                  toggleable: true
+                  label: PLUGIN_ADMIN.ROUTABLE
+                  help: PLUGIN_ADMIN.ROUTABLE_HELP
+                  highlight: 1
+                  options:
+                    1: PLUGIN_ADMIN.ENABLED
+                    0: PLUGIN_ADMIN.DISABLED
+                  validate:
+                    type: bool
 
-            # Remove all admin override fields
+                header.visible:
+                  type: toggle
+                  toggleable: true
+                  label: PLUGIN_ADMIN.VISIBLE
+                  help: PLUGIN_ADMIN.VISIBLE_HELP
+                  highlight: 1
+                  options:
+                    1: PLUGIN_ADMIN.ENABLED
+                    0: PLUGIN_ADMIN.DISABLED
+                  validate:
+                    type: bool
+
+
             admin_only:
-              type: ignore
+              type: section
+              title: PLUGIN_ADMIN.ADMIN_SPECIFIC_OVERRIDES
+              underline: true
+
+              fields:
+
+                header.admin.children_display_order:
+                  type: select
+                  label: PLUGIN_ADMIN.ADMIN_CHILDREN_DISPLAY_ORDER
+                  help: PLUGIN_ADMIN.ADMIN_CHILDREN_DISPLAY_ORDER_HELP
+                  toggleable: true
+                  classes: fancy
+                  default: 'collection'
+                  options:
+                    'default': 'Ordered by Folder name (default)'
+                    'collection': 'Ordered by Collection definition'
+
+
+                header.order_by:
+                  type: hidden
+
+                header.order_manual:
+                  type: hidden
+                  validate:
+                    type: commalist
+
+                blueprint:
+                  type: blueprint
